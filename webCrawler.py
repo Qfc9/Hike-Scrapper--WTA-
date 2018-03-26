@@ -63,7 +63,10 @@ def noQuote(fraze,skip=0,skipEnd=0):
 
 def main():
     pageInt = 0
-    item = 0
+    item = 5
+
+    allFeatures = ['coast', 'rivers', 'lakes', 'waterfalls', 'old growth', 'fall foliage', 'wildflowers/meadows', 'mountain views', 
+    'summits', 'wildlife', 'ridges/passes', 'established campsites', 'dogs allowed on leash', 'dogs not allowed', 'good for kids']
 
     hdr = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
     
@@ -128,33 +131,34 @@ def main():
                     dic.update(grabItem(',\\n                          <span>','</span>','long',page_source,35)) 
 
                     #Features First
-                    dic.update(grabItem('<div class="feature grid_1 alpha " data-title="','">','features0',page_source,47))
+                    # dic.update(grabItem('<div class="feature grid_1 alpha " data-title="','">','features0',page_source,47))
 
-                    #Features Only
-                    dic.update(grabItem('<div class="feature grid_1 alpha omega" data-title="','">','features0',page_source,52))
+                    # #Features Only
+                    # dic.update(grabItem('<div class="feature grid_1 alpha omega" data-title="','">','features0',page_source,52))
 
                     #Features Others
-                    beginDef = page_source[newBegin:].find('<div class="feature grid_1  " data-title="')
+                    beginDef = page_source[newBegin:].find('<div id="hike-features">')
                     endDef = 0
                     newBegin = 0
+                    x = 0
                     while beginDef > -1:
                         newBegin = beginDef + endDef + newBegin
                         
-                        beginDef = page_source[newBegin:].find('<div class="feature grid_1  " data-title="')
+                        beginDef = page_source[newBegin:].find('data-title="')
                     
                         endDef = page_source[newBegin+beginDef:].find('">')
 
-                        dic.update({'features'+str(x): noQuote(page_source[newBegin+beginDef+42:newBegin+beginDef+endDef])})
+                        dic.update({'features'+str(x): noQuote(page_source[newBegin+beginDef+12:newBegin+beginDef+endDef])})
 
                         x=x+1
 
-                    #Features end
-                    beginDef = page_source.find('<div class="feature grid_1  omega" data-title="')
+                    # #Features end
+                    # beginDef = page_source.find('<div class="feature grid_1  omega" data-title="')
 
-                    if beginDef > -1:
-                        endDef = page_source[beginDef:].find('">')
+                    # if beginDef > -1:
+                    #     endDef = page_source[beginDef:].find('">')
 
-                        dic.update({'features'+str(x-1): noQuote(page_source[beginDef+47:beginDef+endDef])})
+                    #     dic.update({'features'+str(x-1): noQuote(page_source[beginDef+47:beginDef+endDef])})
 
                     #Image
                     beginDef = page_source.find('<!-- The image itself -->')
@@ -183,7 +187,7 @@ def main():
 
             #Query Main Trail
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db731590944`.`trails` (`id`, `name`, `latitude`, `longitude`, `directions`, `gain`, `distance`, `pass_id`) VALUES ("
+            query = "INSERT INTO `db731590944`.`trails` (`id`, `name`, `latitude`, `longitude`, `directions`, `gain`, `distance`, `pass`) VALUES ("
             query = query + str(item) +','
             query = addQuery(query,dic,'name')
             query = addQuery(query,dic,'lat')
@@ -192,11 +196,11 @@ def main():
             query = addQuery(query,dic,'gain')
             query = addQuery(query,dic,'distance')
 
-            passInfo = ""
+            passInfo = '""'
             try:
                 if dic['pass_name'] == "Northwest Forest Pass":
                     passInfo = '2'
-                if dic['pass_name'] == "National Park Pass":
+                elif dic['pass_name'] == "National Park Pass":
                     passInfo = '1'
             except:
                 pass
@@ -209,33 +213,25 @@ def main():
 
             #Query Trail Media
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db731590944`.`trail_media` (`id`, `trail_id`, `image_main`) VALUES (NULL,"
+            query = "INSERT INTO `db731590944`.`trail_media` (`trail_id`, `link`, `type`) VALUES ("
             query = query + str(item) +','
-            query = addQuery(query,dic,'image',');\n\n')
+            query = addQuery(query,dic,'image',', 1);\n\n')
 
             file.write(query)
             file.close()
 
             #Query Trail Media
+            query = ''
+            for key in dic:
+                if dic[key].lower() in allFeatures:
+
+                    query += "INSERT INTO `db731590944`.`trail_features` (`trail_id`, `feature_id`) VALUES ("
+                    query += str(item) +','
+                    query += str(allFeatures.index(dic[key].lower()) + 1)
+                    query += ");\n"
+
+
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db731590944`.`trail_features` (`id`, `trail_id`, `coastline`, `rivers`, `lakes`, `waterfalls`, `old_growth`, `fall_foilage`, `flowers`, `mountain_views`, `summits`, `wild_life`, `ridge_passes`, `campsites`, `kid_friendly`, `dogs_allowed`) VALUES (NULL,"
-            query = query + str(item) +','
-
-            query = addFeature(dic,'coast',query)
-            query = addFeature(dic,'rivers',query)
-            query = addFeature(dic,'lakes',query)
-            query = addFeature(dic,'waterfalls',query)
-            query = addFeature(dic,'old growth',query)
-            query = addFeature(dic,'fall foliage',query)
-            query = addFeature(dic,'wildflowers/meadows',query)
-            query = addFeature(dic,'mountain views',query)
-            query = addFeature(dic,'summits',query)
-            query = addFeature(dic,'wildlife',query)
-            query = addFeature(dic,'ridges/passes',query)
-            query = addFeature(dic,'established campsites',query)
-            query = addFeature(dic,'good for kids',query)
-            query = addFeature(dic,'dogs allowed on leash',query,');\n\n')
-
             file.write(query)
             file.close()
             
