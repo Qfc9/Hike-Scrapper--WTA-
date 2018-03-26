@@ -1,5 +1,10 @@
-print "loading..."
-import urllib2, shutil, os, time, cookielib
+print("loading...")
+import urllib.parse
+import urllib.request
+import shutil, os, time
+import ssl
+
+context = ssl._create_unverified_context()
 
 def addQuery(query,dictionary,item,end=','):
     try:
@@ -13,8 +18,8 @@ def addQuery(query,dictionary,item,end=','):
 
 def addFeature(dic,item,query,end=','):
     found = False
-    for key, value in dic.iteritems():
-        if value.lower() == item:
+    for key in dic:
+        if dic[key].lower() == item:
             found = True
             break
     if found:
@@ -60,7 +65,7 @@ def main():
     pageInt = 0
     item = 0
 
-    hdr = {'User-Agent': 'Mozilla/5.0'}
+    hdr = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
     
     while pageInt < 3500:
         x = 1
@@ -68,17 +73,17 @@ def main():
         dic = dict()
         pageLink = 0
         newStart = 0
-        response = ""
+        page = None
         while 1:
             try:
-                req = urllib2.Request("http://www.wta.org/go-hiking/hikes?b_start:int=" + str(pageInt), headers=hdr)
-                response = urllib2.urlopen(req)
+                req = urllib.request.Request("http://www.wta.org/go-hiking/hikes?b_start:int=" + str(pageInt), None, hdr)
+                page = str(urllib.request.urlopen(req, context=context).read())
                 break
             except:
                 time.sleep(1)
-                print "Trying to reconnect..."
+                print( "Trying to reconnect...")
                 
-        page = response.read()
+        # page = response
 
         pageLink = page[newStart:].find('<a class="listitem-title" title="Read the full hike" href="')
         endDef = page[newStart+pageLink:].find('">')
@@ -87,20 +92,19 @@ def main():
 
         newStart = newStart+pageLink+endDef
 
-        print "\nScraping...\n"
+        print( "\nScraping...\n")
         while pageLink > -1:
             while 1:
                 try:
-                    req2 = urllib2.Request(theLink, headers=hdr)
-                    response = urllib2.urlopen(req2)
-                    page_source = response.read()
-                    print 'Processing item ' + str(item)
+                    req2 = urllib.request.Request(theLink, headers=hdr)
+                    page_source = str(urllib.request.urlopen(req2, context=context).read())
+                    print( 'Processing item ' + str(item))
 
                     #Name
                     dic.update(grabItem('<h1 class="documentFirstHeading">','</h1>','name',page_source))
 
                     #Distance
-                    dic.update(grabItem('<div id="distance">','</span>','distance',page_source))
+                    dic.update(grabItem('<div id="distance">',' miles','distance',page_source, 34))
 
                     #Gain
                     dic.update(grabItem('Gain: ','</span>','gain',page_source,5))
@@ -109,19 +113,19 @@ def main():
                     dic.update(grabItem('Highest Point:','</span>','highest',page_source,14))
 
                     #Pass Name
-                    dic.update(grabItem('<div id="pass-required-info" class="alert">','</a>','pass_name',page_source,0,13,9))
+                    dic.update(grabItem('<a title="Learn more about the various types of recreation passes in Washington" href="https://www.wta.org/hiking-info/passes/passes-and-permit-info">','</a>','pass_name',page_source, 150))
 
                     #Description
                     dic.update(grabItem('<div id="hike-body-text" class="grid_9 omega">','</div>','description',page_source,46,0,0,True))
 
                     #Driving Directions
-                    dic.update(grabItem('<div id="driving-directions">','</div>','directions',page_source,0,18))
+                    dic.update(grabItem('Driving Directions','</p>\\n','directions',page_source,40))
 
                     #Latitude
-                    dic.update(grabItem('<div class="latlong">','</span>','lat',page_source,0,13)) 
+                    dic.update(grabItem('Co-ordinates:','</span>','lat',page_source,13)) 
 
                     #Longitude
-                    dic.update(grabItem('<div class="latlong">','<a class','long',page_source,0,23)) 
+                    dic.update(grabItem(',\\n                          <span>','</span>','long',page_source,35)) 
 
                     #Features First
                     dic.update(grabItem('<div class="feature grid_1 alpha " data-title="','">','features0',page_source,47))
@@ -175,38 +179,37 @@ def main():
 
                 except:
                     time.sleep(1)
-                    print 'Trying to reconnect'
+                    print( 'Trying to reconnect')
 
             #Query Main Trail
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db558719382`.`trail` (`id`, `name`, `length`, `gain`, `elevation`, `description`, `latitude`, `longitude`, `directions`, `pass_required`, `pass_name`, `pass_link`, `type`, `country`) VALUES ("
+            query = "INSERT INTO `db731590944`.`trails` (`id`, `name`, `latitude`, `longitude`, `directions`, `gain`, `distance`, `pass_id`) VALUES ("
             query = query + str(item) +','
             query = addQuery(query,dic,'name')
-            query = addQuery(query,dic,'distance')
-            query = addQuery(query,dic,'gain')
-            query = addQuery(query,dic,'highest')
-            query = addQuery(query,dic,'description')
             query = addQuery(query,dic,'lat')
             query = addQuery(query,dic,'long')
             query = addQuery(query,dic,'directions')
+            query = addQuery(query,dic,'gain')
+            query = addQuery(query,dic,'distance')
+
+            passInfo = ""
             try:
-                if dic['pass_name']:
-                    query = query + '"1",'
-                else:
-                    query = query + '"0",'
+                if dic['pass_name'] == "Northwest Forest Pass":
+                    passInfo = '2'
+                if dic['pass_name'] == "National Park Pass":
+                    passInfo = '1'
             except:
-                query = query + '"0",'
-            query = addQuery(query,dic,'pass_name')
-            query = addQuery(query,dic,'pass_link')
-            query = query + '2,'
-            query = query + '1);\n\n'    
+                pass
+
+            query += passInfo
+            query += ');\n\n'    
 
             file.write(query)
             file.close()
 
             #Query Trail Media
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db558719382`.`trail_media` (`id`, `trail_id`, `image_main`) VALUES (NULL,"
+            query = "INSERT INTO `db731590944`.`trail_media` (`id`, `trail_id`, `image_main`) VALUES (NULL,"
             query = query + str(item) +','
             query = addQuery(query,dic,'image',');\n\n')
 
@@ -215,7 +218,7 @@ def main():
 
             #Query Trail Media
             file = open('diclog.txt', "a")
-            query = "INSERT INTO `db558719382`.`trail_features` (`id`, `trail_id`, `coastline`, `rivers`, `lakes`, `waterfalls`, `old_growth`, `fall_foilage`, `flowers`, `mountain_views`, `summits`, `wild_life`, `ridge_passes`, `campsites`, `kid_friendly`, `dogs_allowed`) VALUES (NULL,"
+            query = "INSERT INTO `db731590944`.`trail_features` (`id`, `trail_id`, `coastline`, `rivers`, `lakes`, `waterfalls`, `old_growth`, `fall_foilage`, `flowers`, `mountain_views`, `summits`, `wild_life`, `ridge_passes`, `campsites`, `kid_friendly`, `dogs_allowed`) VALUES (NULL,"
             query = query + str(item) +','
 
             query = addFeature(dic,'coast',query)
@@ -246,9 +249,10 @@ def main():
 
             item=item+1
             dic = dict()
+            exit()
         pageInt = pageInt + 30
 
-    print "DONE!!!"
+    print( "DONE!!!")
     raw_input()
 
 main()
